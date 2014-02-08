@@ -1,0 +1,71 @@
+[credential]
+  helper = cache --timeout=31536000
+
+[color]
+  # Use colors in Git commands that are capable of colored output when outputting to the terminal
+  ui = auto
+  diff = auto
+  status = auto
+  branch = auto
+  interactive = auto
+
+[color "branch"]
+  current = yellow reverse
+  local = yellow
+  remote = green
+
+[color "diff"]
+  meta = yellow bold
+  frag = magenta bold
+  old = red bold
+  new = green bold
+
+[color "status"]
+  added = yellow
+  changed = green
+  untracked = cyan
+
+[apply]
+  whitespace = fix
+
+[core]
+  whitespace = trailing-space,tab-in-indent
+  editor = nano
+  autocrlf = true
+
+[alias]
+  ac = !git add -A && git commit -a
+  d = checkout develop
+  pod = !git checkout develop && git pull origin develop
+
+  # Added from https://github.com/nerdfiles/dotfiles/blob/master/personal.gitconfig#L24-L31
+  details = log -n1 -p --format=fuller
+  today = "log --stat --since='1 Day Ago' --graph --pretty=oneline --abbrev-commit --date=relative"
+  lp = log -p
+  lol = log --source --graph --decorate --pretty=oneline --abbrev-commit
+  lola = log --source --graph --decorate --pretty=oneline --abbrev-commit --all
+  l = log --stat --decorate --graph --all --pretty=format:'%C(yellow)%h%C(cyan)%d%Creset %s %C(white)- %an, %ar%Creset'
+  ll = log --pretty=format:"%C(yellow)%h%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate --numstat
+  lnc = log --pretty=format:"%h\\ %s\\ [%cn]"
+  lds = log --pretty=format:"%C(yellow)%h\\ %ad%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate --date=short
+  ld = log --pretty=format:"%C(yellow)%h\\ %ad%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate --date=relative
+  le = log --oneline --decorate
+  lo = log --graph --pretty=format:'%C(yellow)%h%Creset%C(blue)%d%Creset %C(white bold)%s%Creset %C(white dim)(by %an %ar)%Creset'
+  lb = log --graph --simplify-by-decoration --pretty=format:'%d' --all
+  gviz = "!f() { echo 'digraph git {' ; git log --pretty='format:  %h -> { %p }' \"$@\" | sed 's/[0-9a-f][0-9a-f]*/\"&\"/g' ; echo '}'; }; f"
+  conflicts = !git ls-files --unmerged | cut -f2 | uniq
+  whois = "!sh -c 'git log -i -1 --pretty=\"format:%an <%ae>\n\" --author=\"$1\"' -"
+  whatis = show -s --pretty='tformat:%h (%s, %ad)' --date=short
+  filelog = log -u
+  fl = log -u
+  dl = "!git ll -1"
+  lg = log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --
+  lg1 = log --graph --all --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(bold white)— %an%C(reset)%C(bold yellow)%d%C(reset)' --abbrev-commit --date=relative
+  lg2 = log --graph --all --format=format:'%C(bold blue)%h%C(reset) - %C(bold cyan)%aD%C(reset) %C(bold green)(%ar)%C(reset)%C(bold yellow)%d%C(reset)%n''          %C(white)%s%C(reset) %C(bold white)— %an%C(reset)' --abbrev-commit
+  lg3 = log --pretty=format:"%C(yellow)%h%Cred%d\\ %Creset%s%Cblue\\ [%cn]" --decorate
+  llog = log --date=local
+  s = status
+  ss = status -s
+
+  c = shortlog -sn
+  total = "!f() { git log $@ --numstat | perl -ne '$i+=$1 and $d+=$2 if /^(\\d+)\\s+(\\d+)/; END { print \"$i insertion(s), $d deletion(s)\n\"}'; }; f"

@@ -1,0 +1,170 @@
+#!/bin/bash
+# Argument = -h HELP
+
+# Drupal CAS settings are:
+# (set these under /admin/config/) 
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This sets up Tomcat/CAS
+
+OPTIONS:
+    -h      Help
+EOF
+}
+
+while getopts "h" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+        esac
+    done
+
+# #########################
+# The following is based on 
+#   http://stansantiago.wordpress.com/2011/07/21/installing-cas-server-on-centos/
+#   http://www.youtube.com/watch?v=xMP7WXnlSZo
+#
+# Major steps
+#   1)  Install JDK
+#   2)  Install Tomcat
+#   3)  Enable SSL on Tomcat
+#   4)  Deploy CAS server
+#   5)  Test
+#   6)  CASify Drupal
+# #########################
+
+sudo yum install -y java-1.6.0-openjdk tomcat6 tomcat6-webapps tomcat6-admin-webapps
+
+# Tell tomcat to listen on 8983 instead of 8080, because on the host where this
+# script was first developed, 8080 was already in use for something else.
+# This isn't really necessary, because Drupal executes within the vagrant box.
+# So for Drupal code, 8080 would happily access Tomcat.  But we that's a potential 
+# source of confusion, so we push Tomcat to 8983.
+sudo sed -i s/8080/8983/g /usr/share/tomcat6/conf/server.xml
+
+# As of this writing, the latest is 3.5.2.
+# After we get things working per the tutorial with 3.4.7, switch 
+# to the latest and see if it still works.
+sudo wget -P /home/vagrant http://downloads.jasig.org/cas/cas-server-3.4.7-release.tar.gz
+sudo tar zxf /home/vagrant/cas-server-3.4.7-release.tar.gz -C /home/vagrant
+
+sudo mkdir -p /opt/cas
+sudo chown -R tomcat /opt/cas
+sudo scp -r /home/vagrant/cas-server-3.4.7 /opt/cas
+sudo scp /opt/cas/cas-server-3.4.7/modules/cas-server-webapp-3.4.7.war /usr/share/tomcat6/webapps
+
+# Set up custom authentication
+#
+# Out-of-the-box, CAS uses SimpleTestUsernamePasswordAuthenticationHandler as a
+# placeholder authentication mechanism (which validates as successful anything 
+# where the username and password are equal).  Replace with something real by
+# modifying this file:
+#   /var/lib/tomcat6/webapps/cas-server-webapp-3.4.7/WEB-INF/deployerConfigContext.xml
+# and replacing the SimpleTestUsernamePasswordAuthenticationHandler bean with
+# an appropriate one.
+
+# Should we modify 
+#   /var/lib/tomcat6/webapps/cas-server-webapp-3.4.7/WEB-INF/classes/log4j.xml
+# to log to
+#   /var/log/tomcat6/cas.log
+# instead of the default of just 
+#   cas.log 
+# (a default which is likely to not work...)
+
+# Set up SSL
+sudo mkdir /etc/tomcat6/keystore
+sudo chown tomcat:tomcat /etc/tomcat6/keystore
+sudo /usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/keytool -genkey -alias tomcat -storepass changeit -keypass changeit -keyalg RSA -keystore /etc/tomcat6/keystore/.keystore -dname "CN=KCM, OU=KCM, O=KCM, L=Newark, S=TX, C=US"
+sudo chown tomcat:tomcat /etc/tomcat6/keystore/.keystore
+
+sudo /usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/keytool -export -alias tomcat -storepass changeit -keypass changeit -file /etc/tomcat6/keystore/server.crt -keystore /etc/tomcat6/keystore/.keystore
+sudo /usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/keytool -import -file /etc/tomcat6/keystore/server.crt -storepass changeit -keypass changeit -keystore /usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/lib/security/cacerts
+
+sudo cp /vagrant/data/config_files/server.xml /etc/tomcat6/server.xml
+
+sudo service tomcat6 restart
+
+exit
+
+# It'd be cool if the following worked, instead of copying in a server.xml file.
+# But the whitespace confuses the regex and I never found an acceptable workaround.
+SERVERXML_SEARCH='
+    <!--
+    <Connector port="8443" protocol="HTTP\/1.1" SSLEnabled="true"
+               maxThreads="150" scheme="https" secure="true"
+               clientAuth="false" sslProtocol="TLS" \/>
+    -->'
+SERVERXML_REPLACE='
+    <!-- Define a SSL HTTP\/1.1 Connector on port 8443 -->
+    <Connector port="8443" maxHttpHeaderSize="8192"
+               maxThreads="150" minSpareThreads="25" maxSpareThreads="75"
+               enableLookups="false" disableUploadTimeout="true"
+               acceptCount="100" scheme="https" secure="true"
+               clientAuth="false" sslProtocol="TLS"
+               keystoreFile="\/etc\/tomcat6\/keystore\/.keystore"
+               keystorePass="changeit"
+               truststoreFile="\/usr\/lib\/jvm\/java-1.6.0-openjdk-1.6.0.0.x86_64\/jre\/lib\/security\/cacerts"
+               SSLEnabled="true" protocol="org.apache.coyote.http11.Http11Protocol" \/>'
+sudo sed "s/$SERVERXML_SEARCH/$SERVERXML_REPLACE/x" /etc/tomcat6/server.xml
+
+#JAVA_HOME/bin/keytool -genkey -alias tomcat -keyalg RSA
+sudo /usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/keytool -genkey -alias tomcat -keyalg RSA -keystore /home/vagrant/.keystore
+sudo chown tomcat .keystore
+
+ #in /etc/tomcat6/server.xml, change:      
+
+#<!--
+#<Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true"
+#            maxThreads="150" scheme="https" secure="true"
+#            clientAuth="false" sslProtocol="TLS" />
+# -->
+
+#to
+
+#<Connector port="8443" maxThreads="150" 
+#           protocol="HTTP/1.1" SSLEnabled="true" scheme="https" secure="true"
+#           clientAuth="false" sslProtocol="TLS" 
+#           keystoreFile="/home/vagrant/.keystore" keystorePass=”password”/>
+
+# (uncomment, add password)
+
+# misc useful stuff for debugging:
+#
+# sudo tail /var/log/tomcat6/catalina.out
+# more logs under /var/log/tomcat6
+# netstat -tlnp
+# ps aux | grep -i tomcat
+# more goodness here:  http://stackoverflow.com/questions/18447930/tomcat-wont-respond-on-port-8080
+# sudo wget -P /home/vagrant http://localhost:8983/cas-server-webapp-3.4.7/login
+# http://tomcat.apache.org/tomcat-6.0-doc/ssl-howto.html
+
+# to enable the Tomcat web management pages, set this file:
+#   /etc/tomcat6/tomcat-users.xml
+# to this:
+# <?xml version='1.0' encoding='utf-8'?>
+# <tomcat-users>
+#   <role rolename="manager"/>
+#   <role rolename="admin"/>
+#   <user username="admin" password="admin" roles="admin,manager"/>
+# </tomcat-users>
+
+# or maybe we want apache and not tomcat to do the ssl
+#https://www.digitalocean.com/community/articles/how-to-create-a-ssl-certificate-on-apache-for-centos-6
+#http://andrius.miasnikovas.lt/2010/04/apache-http-server-ssl-tomcat-6-x-on-ubuntu-and-centos/
+sudo yum install -y mod_ssl
+sudo mkdir /etc/httpd/ssl
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/httpd/ssl/apache.key -out /etc/httpd/ssl/apache.crt
+
+edit this file:  /etc/httpd/conf.d/ssl.conf
+set DocumentRoot:  /var/www/html/bdp_d7
+ServerName:  localhost
+SSLCertificateFile /etc/httpd/ssl/apache.crt
+SSLCertificateKeyFile /etc/httpd/ssl/apache.key
+

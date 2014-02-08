@@ -1,0 +1,2 @@
+.git/
+sites/default/files/

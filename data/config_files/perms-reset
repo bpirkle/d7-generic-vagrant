@@ -1,0 +1,1 @@
+sudo /usr/local/bin/set_drupal_perms.sh --drupal_path=/var/www/html/d7-generic --drupal_user=vagrant --httpd_group=apache

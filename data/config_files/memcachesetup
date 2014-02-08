@@ -1,0 +1,73 @@
+#!/bin/bash
+# Argument = -h HELP
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This sets up Memcache
+
+OPTIONS:
+    -h      Help
+EOF
+}
+
+while getopts "h" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+        esac
+    done
+
+# #########################
+# The following is based on 
+#   http://andrewdunkle.com/how-install-memcached-drupal-7
+# and
+#   http://samhassell.com/setting-up-memcached-with-drupal-7-on-centos-6/
+# #########################
+
+# install packages
+#sudo yum install -y memcached libmemcached-tools
+sudo yum install -y memcached
+
+sudo tee /etc/php.d/memcache.ini <<EOF
+; Enable memcache extension
+extension=memcache.so
+EOF
+
+sudo /sbin/chkconfig --levels 235 memcached on
+sudo service memcached start
+
+# configure
+# not necessary because we include this in the php.ini that we copy in.
+#printf "\nextension=memcache.so\n" | sudo tee -a /etc/php.ini
+# we could also adjust /etc/sysconfig/memcached to adjust things
+# like the amount of memory allocated to memcache
+
+printf "\n" | sudo pecl install memcache
+
+# other code in setup.sh will start apache later
+# sudo apachectl -k graceful
+
+exit
+
+
+# misc useful stuff for debugging:
+#
+# to check if memcache is running:
+#   sudo netstat -tap | grep memcached
+# this should give something like:
+#   tcp 0 0 localhost:11211 *:* LISTEN 25266/memcached
+#
+# nifty little status ui script here:
+#   http://livebookmark.net/journal/2008/05/21/memcachephp-stats-like-apcphp/
+#
+# view memcache configuration:
+#   echo "stats settings" | nc localhost 11211
+#
+# confirm PHP memcache extension is happy:
+#   php -i | grep memcache

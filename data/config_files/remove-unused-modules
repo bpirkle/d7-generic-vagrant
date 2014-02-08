@@ -1,0 +1,6 @@
+mkdir ~/dirty
+mysql --batch --raw -u root -pdbroot123 d7_database -e "SELECT name FROM system WHERE status = 0 AND schema_version = '-1' AND filename LIKE 'sites/all/modules/%' AND name NOT LIKE '%bdp%'ORDER BY name" | while read -r name
+do
+  #echo $name;
+  sudo mv  "/var/www/html/d7-generic/sites/all/modules/$name" ~/dirty
+done

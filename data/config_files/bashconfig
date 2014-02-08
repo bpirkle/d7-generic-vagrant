@@ -1,0 +1,45 @@
+#!/bin/bash
+# Argument = -h HELP
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This script updates the bash config to support Windows terminals.
+
+OPTIONS:
+    -h      Help
+EOF
+}
+
+while getopts "h" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+
+        esac
+    done
+
+
+
+read -p "Install a Windows-friendly bash profile? [y/n]" -n1 -r WINDOWS
+
+if [[ "$WINDOWS" =~ ^[Yy]$ ]]; then
+    echo -e "\n" 
+    cp /vagrant/data/config_files/.bash_profile     /home/vagrant/
+    cp /vagrant/data/config_files/.bashrc           /home/vagrant/
+fi
+
+if [[ "$WINDOWS" =~ ^[Nn]$ ]]; then
+    echo -e "\n" 
+    if [ -e "/home/vagrant/.bash_profile" ]; then
+        rm /home/vagrant/.bash_profile
+    fi
+    if [ -e "/home/vagrant/.bashrc" ]; then    
+        rm /home/vagrant/.bashrc
+    fi
+fi

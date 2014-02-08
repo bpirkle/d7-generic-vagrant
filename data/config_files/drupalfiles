@@ -1,0 +1,72 @@
+#!/bin/bash
+# Argument = -h HELP
+
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This bash exists to update sites/default/files from alpha.kmc.org.
+User input is required.
+These files will be installed on the host system.
+The files will survive destruction of the virtual machine.
+Only rerun this process when an update is desired.
+
+OPTIONS:
+    -h      Help
+EOF
+}
+
+while getopts "h" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+
+        esac
+    done
+
+# This script imported Drupal files from a remote site's periodic dump.
+# it is left as an example if this is ever desired.
+# The stage_file_proxy module is probably a preferred solution.
+exit
+
+
+########### User Input ##########
+
+read -n1 -p "Update sites/default/files from remote site? [y,n]" doit 
+
+
+
+
+########### Import Files ##########
+
+case $doit in  
+    y|Y)
+        cd ~ 
+        
+        echo -e "\n" 
+        
+        # Remove any previous files.tar.gz
+        rm -fR ~/files*
+        
+        wget --http-user=user --http-password=password http://alpha.example.com/wgets/files.tar.gz
+        tar xzpf ~/files.tar.gz
+        
+        # Copy files to the mount, so that this long files download can survive "$ vagrant destroy"
+        sudo cp -fR ~/files /mnt/d7-generic/sites/default/
+        
+        # publish bash takes care of permissions issues.
+        /usr/local/bin/publish -fp
+  
+        ;;
+    n|N) 
+        echo -e "\n - no action taken" 
+        ;; 
+    *) 
+        echo invalid entry 
+        ;;
+esac

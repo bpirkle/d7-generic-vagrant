@@ -1,0 +1,86 @@
+#!/bin/bash
+# Argument = -h HELP
+
+# Varnish will be accessible via external port 9090
+# This gives us the option of hitting 8080 (no Varnish) or 9090 (Varnish)
+# from the browser, depending on whether we want to test with or without it.
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This sets up Varnish
+
+OPTIONS:
+    -h      Help
+EOF
+}
+
+while getopts "h" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+        esac
+    done
+
+######################
+# From http://samhassell.com/setting-up-varnish-for-drupal-on-centos-6/
+######################
+
+sudo rpm --nosignature -i http://repo.varnish-cache.org/redhat/varnish-3.0/el6/noarch/varnish-release/varnish-release-3.0-1.el6.noarch.rpm
+sudo yum install  -y varnish
+
+# This means:
+#   -a :9090 tells varnish to listen on port 9090 for all ips
+#   -t localhost:9091 is the management interface, available only on ip "localhost" at port 8080
+#   -u varnish -g varnish means run as user/group "varnish"
+#   -s malloc,256m tells varnish to to store a 256 meg cache in memory (as opposed to disk)
+# A -b line would specify which host/port to forward to, but we specify that in the .vcl file
+sudo mv /etc/sysconfig/varnish /etc/sysconfig/varnish.orig
+sudo tee /etc/sysconfig/varnish <<EOF
+DAEMON_OPTS="-a :9090 \
+-T localhost:9091 \
+-u varnish -g varnish \
+-s malloc,256m \
+-f /etc/varnish/default.vcl"
+EOF
+sudo chown varnish:varnish /etc/sysconfig/varnish
+
+sudo mv /etc/varnish/default.vcl /etc/varnish/default.vcl.orig
+sudo cp /vagrant/data/config_files/default.vcl         /etc/varnish/default.vcl
+sudo chown varnish:varnish /etc/varnish/default.vcl
+
+sudo /sbin/chkconfig --levels 235 varnish on
+sudo /etc/init.d/varnish start
+
+# The Drupal varnish module and some settings.php changes are also required.
+# Those are outside the scope of this script.
+
+exit
+
+
+# misc useful stuff for debugging:
+
+# netstat -tlnp
+# ps aux | grep -i varnish
+
+# can use varnishstat to check behavior
+# logs are in /var/log/varnish, configure logging with varnishlog
+
+# some other resources
+# https://drupal.org/node/1823970
+# https://drupal.org/node/1196916
+# http://www.lullabot.com/blog/article/configuring-varnish-high-availability-multiple-web-servers
+# https://drupal.org/node/1054886
+# http://www.jefflogan.co.uk/blog/simple-varnish-setup-drupal-7-sites
+# https://www.varnish-software.com/static/book/Getting_started.html
+
+# to launch with debugging enabled (useful for finding .vcl file errors)
+# sudo varnishd -f /etc/varnish/default.vcl -s malloc,256m -T localhost:9091 -a :9090
+
+# vagrant debugging guide
+# https://www.varnish-cache.org/docs/3.0/tutorial/troubleshooting.html

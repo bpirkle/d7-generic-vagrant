@@ -1,0 +1,107 @@
+#!/bin/bash
+# Argument = -h HELP
+
+# Drupal Solr settings are:
+#   Solr Host:  localhost
+#   Solr Port:  8983
+#   Solr Path:  /solr-drupal
+#   no HTTP authentication is required
+# (set these under /admin/config/search/search_api/server/solr/edit) 
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This sets up Tomcat/Solr
+
+OPTIONS:
+    -h      Help
+EOF
+}
+
+while getopts "h" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+        esac
+    done
+
+# #########################
+# The following is based on https://drupal.org/node/2148299
+# Watch out for this bug:  https://drupal.org/node/2122711
+# #########################
+
+sudo yum install -y java-1.6.0-openjdk tomcat6 tomcat6-webapps tomcat6-admin-webapps
+
+# Tell tomcat to listen on 8983 instead of 8080, because on the host where this
+# script was first developed, 8080 was already in use for something else.
+# This isn't really necessary, because Drupal executes within the vagrant box.
+# So for Drupal code, 8080 would happily access Tomcat.  But we that's a potential 
+# source of confusion, so we push Tomcat to 8983.
+sudo sed -i s/8080/8983/g /usr/share/tomcat6/conf/server.xml
+
+sudo wget -P /home/vagrant/ http://archive.apache.org/dist/lucene/solr/4.4.0/solr-4.4.0.tgz
+sudo tar zxf /home/vagrant/solr-4.4.0.tgz -C /home/vagrant
+
+sudo mkdir -p /opt/solr/drupal/solr
+sudo chown -R tomcat /opt/solr/drupal/solr
+sudo scp -r /home/vagrant/solr-4.4.0/example/solr/* /opt/solr/drupal/solr
+sudo scp /home/vagrant/solr-4.4.0/dist/solr-4.4.0.war /opt/solr/drupal/solr/solr.war
+sudo scp -r solr-4.4.0/example/lib/ext/* /usr/share/tomcat6/lib/
+sudo scp solr-4.4.0/example/resources/log4j.properties /usr/share/tomcat6/lib/
+
+sudo sed -i 's/=logs/=\/var\/log\/tomcat6/g' /usr/share/java/tomcat6/log4j.properties
+
+# These changes will be overwritten by the Drupal config files below.
+# We leave this for exposition, in the event of future changes that make this necessary.
+sudo sed -i 's/data.dir:/data.dir:\/opt\/solr\/drupal\/solr\/data/g' /opt/solr/drupal/solr/collection1/conf/solrconfig.xml
+
+sudo mkdir /opt/solr/drupal/solr/collection1/data
+sudo chown -R tomcat /opt/solr/drupal/solr/collection1/data
+
+sudo scp -r /var/www/html/d7-generic/sites/all/modules/search_api_solr/solr-conf/4.x/* /opt/solr/drupal/solr/collection1/conf/
+
+sudo tee /etc/tomcat6/Catalina/localhost/solr-drupal.xml <<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<Context docBase="/opt/solr/drupal/solr/solr.war" debug="0" crossContext="true">
+  <Environment name="solr/home" type="java.lang.String" value="/opt/solr/drupal/solr" override="true"/>
+</Context>
+EOF
+
+sudo chown tomcat /etc/tomcat6/Catalina/localhost/solr-drupal.xml
+
+sudo /sbin/chkconfig --levels 235 tomcat6 on
+sudo /etc/init.d/tomcat6 start
+
+# #########################
+# Solr will now be accessible from inside the vagrant box at:
+#   http://localhost:8983/solr-drupal
+# or outside the box at:
+#   http://localhost:8081/solr-drupal/#/
+# (assuming Vagrantfile port forwarding of 8081 host to 8983 guest)
+# #########################
+
+exit
+
+
+# misc useful stuff for debugging:
+#
+# sudo tail /var/log/tomcat6/catalina.out
+# more logs under /var/log/tomcat6
+# netstat -tlnp
+# ps aux | grep -i tomcat
+# more goodness here:  http://stackoverflow.com/questions/18447930/tomcat-wont-respond-on-port-8080
+
+# to enable the Tomcat web management pages, set this file:
+#   /etc/tomcat6/tomcat-users.xml
+# to this:
+# <?xml version='1.0' encoding='utf-8'?>
+# <tomcat-users>
+#   <role rolename="manager"/>
+#   <role rolename="admin"/>
+#   <user username="admin" password="admin" roles="admin,manager"/>
+# </tomcat-users>

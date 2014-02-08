@@ -1,0 +1,140 @@
+ #!/bin/bash
+# Argument = -h HELP -i INITIAL_RUN
+
+INITIAL_RUN=n
+BACKUP=n
+IMPORT=n
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This script supports database functions.
+User input is required, unless run with option -i.
+Supported functions are local backup and resoration of the the initial configuration.
+Modifications occur subsequently to support local development.
+
+OPTIONS:
+    -h      Help
+    -i      Initial Run
+EOF
+}
+
+while getopts "hi" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+        i)
+            INITIAL_RUN=y
+            ;;
+
+        esac
+    done
+
+# An opportunity for improvement would be to also give the option
+# of restoring the most recent backup.
+#
+# There is also commented-out code herein for pulling from a 
+# remote testing site, for use as a template if this is ever desired.
+
+########### User Input ##########
+
+if [ "$INITIAL_RUN" != "y" ]; then
+    
+    read -rep $"Backup your current (local) database? [y,n]" -n1 BACKUP
+    read -rep $"Import database from initial configuration?  [y,n]" -n1 IMPORT
+
+fi
+
+
+
+########### Backup local database ##########
+
+if [[ $BACKUP =~ ^[Yy]$ ]]; then
+    # create filename.
+    FILENAME="bdpd7.$(date +%Y%m%d_%H%M%S).sql"
+    cd /var/www/html/d7-generic
+    drush sql-dump --result-file=~/$FILENAME --ordered-dump --skip-tables-key=common
+    cd ~
+    tar czf $FILENAME.tar.gz $FILENAME
+    rm $FILENAME
+
+    echo "Backup Completed - Filename: ~/$FILENAME"
+fi
+
+
+
+########### Import initial (mostly bare) database. ###########
+
+if [[ "$IMPORT" =~ ^[Yy]$ || "$INITIAL_RUN" = "y" ]]; then
+
+    cd /var/www/html/d7-generic
+
+    echo ">>>>>>Dropping current Drupal database..."
+    drush sql-drop -y
+
+    echo ">>>>>>Importing original database..."
+    drush sqlc < /vagrant/data/config_files/genericdb.sql
+
+    echo ">>>>>>Import complete."
+    echo ">>>>>>Running database updates."
+    drush updb
+
+fi
+
+
+# This block imported the db from a remote testing site's
+# automated periodic database dump.  It is left for reference.
+########### Import database from alpha. ###########
+
+#if [[ "$IMPORT" =~ ^[Yy]$ || "$INITIAL_RUN" = "y" ]]; then
+
+#    cd ~
+#    wget --http-user=user --http-password=password http://alpha.example.org/wgets/example_com.sql
+
+#    cd /var/www/html/d7-generic
+
+#    echo ">>>>>>Dropping current Drupal database..."
+#    drush sql-drop -y
+
+#    echo ">>>>>>Importing lastest remote database..."
+#    drush sqlc < ~/example_org.sql
+
+#    echo ">>>>>>Import complete."
+#    echo ">>>>>>Running database updates."
+#    drush updb
+
+#fi
+
+
+########### Imported database modifications for local ###########
+
+# This could be expanded to make any desired post-db-import modifications.etc.
+# For example, suppose you modified this script to import from a remote testing
+# site and you wanted devel enabled in your vagrant box but not on the remote site.
+
+if [[ "$IMPORT" =~ ^[Yy]$ || "$INITIAL_RUN" = "y" ]]; then
+
+    echo ">>>>>>Modifying module config for local development."
+  
+#    drush rr
+#    drush en devel stage_file_proxy -y
+#    drush en search_api_solr_overrides -y
+#    drush en memcache memcache_admin -y
+#    drush en varnish -y
+    # Clear cache again.
+#    drush sqlq "SHOW TABLES LIKE '%cache%'" | while read -r name
+#    do
+#      drush sqlq "truncate table $name";
+#      echo "$name truncated"
+#    done
+
+    # Update database.
+#    drush updb
+    drush cron
+
+fi

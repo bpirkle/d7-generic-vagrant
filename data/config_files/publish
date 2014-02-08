@@ -1,0 +1,43 @@
+#!/bin/bash
+# Argument = -h HELP -c CLEAR_CACHE_ALL -f INCLUDE_ALL_FILES -p PERMS_RESET
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This script publishes updates to the document root of the vhost.
+It can also reset permissions and clear cache if desired.
+
+OPTIONS:
+    -h      Help
+    -c      Clear Cache All
+    -f      Include all files
+    -p      Reset Drupal Permissions
+EOF
+}
+
+sudo chown apache:vagrant /var/www/html
+
+while getopts "hcfp" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+        c)
+            drush cc all
+            ;;
+        f)
+            chown apache:vagrant /var/www/html
+            sudo rsync --exclude '*.tmp' --exclude '.git' --exclude 'vagrant' --exclude '.DS_Store' --exclude '.gitignore' --exclude 'settings.php' -raz --progress --stats --human-readable --update /mnt/d7-generic/ /var/www/html/d7-generic/
+            ;;
+        p)
+            /usr/local/bin/perms-reset
+            ;;
+
+        esac
+    done
+
+sudo rsync --exclude '*.tmp' --exclude '.git' --exclude 'vagrant' --exclude '.DS_Store' --exclude 'sites/default/files'  --exclude '.gitignore' --exclude 'settings.php' -razp --progress --stats --human-readable --update /mnt/d7-generic/ /var/www/html/d7-generic/

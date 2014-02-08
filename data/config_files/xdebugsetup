@@ -1,0 +1,96 @@
+#!/bin/bash
+# Argument = -h HELP
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This sets up XDebug
+
+OPTIONS:
+    -h      Help
+EOF
+}
+
+while getopts "h" OPTION
+    do
+        case $OPTION in
+        h)
+            usage
+            exit 1
+            ;;
+        esac
+    done
+
+# #########################
+# The following is based on 
+#   http://stackoverflow.com/questions/15339165/cannot-debug-with-phpstorm-vagrant-xdebug
+#   http://www.dev-metal.com/debug-code-remote-server-vagrant-box-phpstorm/
+#   http://ulaptech.blogspot.com/2010/11/how-to-install-and-configure-xdebug.html
+#   http://devnet.jetbrains.com/message/5505497;jsessionid=E937D0AF8C34B9111802D5027B3626F4#5505497
+# The vagrant box will call back out to the host on port 9000.  IDE configuration may
+# be necessary, and will vary with IDE.  On PHPStorm, the following worked:
+#   1) create a PHP Remote Debug configuration
+#   2) set the ide key (session id) to "bdp"
+#   3) create a server (I named my Vagrant Box) with settings:
+#        Host:  localhost
+#        Port:  9000
+#        Debugger:  XDebug
+#        Path mappings:  <my host d7-generic git root> => /var/www/html/d7-generic
+#   4) click the "telephone" icon in the toolbar (to make PHPStorm listen for incoming connections)
+#   5) load the site in your browser via this url:  
+#         http://localhost:8888?XDEBUG_SESSION_START=bdp
+#  
+#   WARNING!  BEWARE!  DANGER!  Sending the parameter to start debugging will kick off
+#   xdebug on the server (Vagrant box) side, and everything will seem fine.  But the 
+#   Vagrant box doesn't know when you stop the IDE from listening.  It'll still be
+#   trying to call out to the host.  So your site will run REALLY REALLY REALLY slow
+#   until your IDE starts listening again, or you restart httpd on the Vagrant box.
+#
+#   To turn the debugger back off on the server side, hit this url:
+#     http://localhost:8080?XDEBUG_SESSION_STOP
+#
+#   All this parameter business is really just management of the XDEBUG_SESSION cookie.
+#   (Manually deleting the XDEBUG_SESSION cookie has the same effect as XDEBUG_SESSION _STOP).
+#   If there's a way to get the IDE to cause that to happen automatically, manually
+#   turning off debugging via hitting the url would be unnecessary.
+#
+#   As a final option, you can also install a browser extension to turn debugging 
+#   on/off.  There's a list here:
+#     http://xdebug.org/docs/remote
+#   but a few common ones are:
+#     Chrome:  https://chrome.google.com/extensions/detail/eadndfjplgieldjbigjakmdgkmoaaaoc
+#     Firefox:  https://addons.mozilla.org/en-US/firefox/addon/the-easiest-xdebug/
+#     Safari:  https://github.com/benmatselby/xdebug-toggler
+#
+# #########################
+
+# install packages
+sudo pecl install xdebug
+
+sudo tee /etc/php.d/xdebug.ini <<EOF
+zend_extension = /usr/lib64/php/modules/xdebug.so
+xdebug.remote_enable=1
+xdebug.remote_autostart=0
+xdebug.idekey="bdp"
+xdebug.remote_connect_back=1
+xdebug.remote_port=9000
+xdebug.remote_mode=req
+xdebug.remote_log="/tmp/xdebug.log"
+EOF
+
+sudo service httpd restart
+
+# You'll also need to configure your IDE for remote debuggin.
+# Instructions for PHPStorm are here:  http://www.jetbrains.com/phpstorm/webhelp/run-debug-configuration-php-remote-debug.html
+
+exit
+
+
+# misc useful stuff for debugging:
+#
+# http://xdebug.org/docs/remote#
+#
+# confirm PHP memcache extension is happy:
+#   php -i | grep xdebug
